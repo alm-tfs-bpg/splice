@@ -717,7 +717,34 @@
       return rows;
     }
 
+    function renderEmployeeTrainingTable(tree) {
+      const rows = flattenEmployeeTrainingRows(tree);
 
+      if (!rows.length) {
+        return `<div class="muted">No training found for this employee.</div>`;
+      }
+
+      return `
+        <table class="employee-training-table">
+          <thead>
+            <tr>
+              <th>Item Title</th>
+              <th>Item Type</th>
+              <th>Item ID</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(row => `
+              <tr>
+                <td>${escapeHtml(row.item_title)}</td>
+                <td>${escapeHtml(row.item_type)}</td>
+                <td>${escapeHtml(row.item_id)}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      `;
+    }
     
     function showTrainingForEmployee(employeeId) {
       selectedEmployeeId = employeeId;
