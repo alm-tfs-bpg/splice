@@ -73,11 +73,12 @@
       overflow-y: auto;
     }
 
-    .sticky-tabs-panel {
+    .sticky-tabs-bar {
       position: sticky;
       top: 20px;
       z-index: 10;
-      margin-bottom: 18px;
+      background: #fff;
+      padding-bottom: 8px;
     }
 
     .panel h2, .panel h3 {
@@ -345,9 +346,13 @@
       <input id="search" type="text" placeholder="Search item ID, title, type, curriculum, or subcurriculum..." />
     </div>
 
-    <div class="panel sticky-tabs-panel">
+    <div class="panel" style="margin-bottom: 18px;">
       <h2>Direct Reports</h2>
-      <div id="employee-tabs" class="muted">Loading direct reports...</div>
+
+      <div class="sticky-tabs-bar">
+        <div id="employee-tabs" class="muted">Loading direct reports...</div>
+      </div>
+
       <div id="employee-training-browser" class="muted" style="margin-top: 16px;">Click a direct report to view all assigned training.</div>
     </div>
 
