@@ -297,6 +297,32 @@
         overflow-y: visible;
       }
     }
+    .employee-tabs-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .employee-tab {
+      padding: 8px 12px;
+      border: 1px solid #cfcfcf;
+      border-radius: 999px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 14px;
+      font-family: Arial, sans-serif;
+    }
+
+    .employee-tab:hover {
+      background: #eef5ff;
+      border-color: #b9d3ff;
+    }
+
+    .employee-tab.active-tab {
+      background: #dfeeff;
+      border-color: #82aef5;
+      font-weight: 700;
+    }
   </style>
 </head>
 <body>
@@ -306,6 +332,12 @@
 
     <div class="toolbar">
       <input id="search" type="text" placeholder="Search item ID, title, type, curriculum, or subcurriculum..." />
+    </div>
+
+    <div class="panel" style="margin-bottom: 18px;">
+      <h2>Direct Reports</h2>
+      <div id="employee-tabs" class="muted">Loading direct reports...</div>
+      <div id="employee-training-browser" class="muted" style="margin-top: 16px;">Click a direct report to view all assigned training.</div>
     </div>
 
     <div class="layout">
@@ -365,6 +397,8 @@
 
     const app = document.getElementById("app");
     const search = document.getElementById("search");
+    const employeeTabsEl = document.getElementById("employee-tabs");
+    const employeeTrainingBrowserEl = document.getElementById("employee-training-browser");
     const pageTitleEl = document.getElementById("page-title");
     const selectedTrainingEl = document.getElementById("selected-training");
     const selectedTrainingDetailsEl = document.getElementById("selected-training-details");
@@ -509,6 +543,74 @@
       return fullData.employee_training_lookup[employeeId] || null;
     }
 
+    function getAllEmployees() {
+      if (!fullData || !fullData.employee_training_lookup) return [];
+
+      return Object.values(fullData.employee_training_lookup).sort((a, b) => {
+        const aText = `${a.employee_name || ""} ${a.employee_id || ""}`.toLowerCase();
+        const bText = `${b.employee_name || ""} ${b.employee_id || ""}`.toLowerCase();
+        return aText.localeCompare(bText);
+      });
+    }
+
+    function updateActiveEmployeeTabs() {
+      document.querySelectorAll(".employee-tab").forEach(el => {
+        if (el.dataset.employeeId === selectedEmployeeId) {
+          el.classList.add("active-tab");
+        } else {
+          el.classList.remove("active-tab");
+        }
+      });
+    }
+
+    function showEmployeeInBrowser(employeeId) {
+      selectedEmployeeId = employeeId;
+      updateActiveEmployeeTabs();
+
+      const employeeData = getTrainingForEmployee(employeeId);
+
+      if (!employeeData) {
+        employeeTrainingBrowserEl.className = "muted";
+        employeeTrainingBrowserEl.textContent = "No training found for this employee.";
+        return;
+      }
+
+      employeeTrainingBrowserEl.className = "";
+      employeeTrainingBrowserEl.innerHTML = `
+        <div class="summary-person-title">${escapeHtml(employeeData.employee_name)} (${escapeHtml(employeeData.employee_id)})</div>
+        ${renderEmployeeTree(employeeData.tree || [])}
+      `;
+    }
+
+    function renderEmployeeTabs() {
+      const employees = getAllEmployees();
+
+      if (!employees.length) {
+        employeeTabsEl.className = "muted";
+        employeeTabsEl.textContent = "No direct reports found.";
+        return;
+      }
+
+      employeeTabsEl.className = "";
+      employeeTabsEl.innerHTML = "";
+
+      const wrap = document.createElement("div");
+      wrap.className = "employee-tabs-wrap";
+
+      employees.forEach(employee => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "employee-tab";
+        btn.dataset.employeeId = employee.employee_id;
+        btn.textContent = `${employee.employee_name} (${employee.employee_id})`;
+        btn.addEventListener("click", () => showEmployeeInBrowser(employee.employee_id));
+        wrap.appendChild(btn);
+      });
+
+      employeeTabsEl.appendChild(wrap);
+      updateActiveEmployeeTabs();
+    }
+
     function updateActiveEmployeeStyles() {
       document.querySelectorAll(".employee-main").forEach(el => {
         if (el.dataset.employeeId === selectedEmployeeId) {
@@ -571,24 +673,24 @@
       `;
     }
 
-      function showTrainingForEmployee(employeeId) {
-        selectedEmployeeId = employeeId;
-        updateActiveEmployeeStyles();
+    function showTrainingForEmployee(employeeId) {
+      selectedEmployeeId = employeeId;
+      updateActiveEmployeeStyles();
 
-        if (!selectedEmployeeTrainingEl) return;
+      if (!selectedEmployeeTrainingEl) return;
 
-        const employeeData = getTrainingForEmployee(employeeId);
+      const employeeData = getTrainingForEmployee(employeeId);
 
-        if (!employeeData) {
-          selectedEmployeeTrainingEl.className = "muted";
-          selectedEmployeeTrainingEl.textContent = "No training found for this employee.";
-          return;
-        }
+      if (!employeeData) {
+        selectedEmployeeTrainingEl.className = "muted";
+        selectedEmployeeTrainingEl.textContent = "No training found for this employee.";
+        return;
+      }
 
-        selectedEmployeeTrainingEl.className = "";
-        selectedEmployeeTrainingEl.innerHTML = `
-          <div class="summary-person-title">${escapeHtml(employeeData.employee_name)} (${escapeHtml(employeeData.employee_id)})</div>
-          ${renderEmployeeTree(employeeData.tree || [])}
+      selectedEmployeeTrainingEl.className = "";
+      selectedEmployeeTrainingEl.innerHTML = `
+        <div class="summary-person-title">${escapeHtml(employeeData.employee_name)} (${escapeHtml(employeeData.employee_id)})</div>
+        ${renderEmployeeTree(employeeData.tree || [])}
       `;
     }
     
@@ -941,6 +1043,7 @@
       selectedItems = loadSavedSelections();
 
       renderTree("");
+      renderEmployeeTabs();
       renderSelectionSummary();
 
       const supervisorName = data?.supervisor?.name || "";
