@@ -343,6 +343,12 @@
       font-weight: 700;
       background: transparent;
     }
+
+    .sticky-tabs-panel {
+      position: sticky;
+      top: 20px;
+      z-index: 10;
+    }
   </style>
 </head>
 <body>
@@ -354,7 +360,7 @@
       <input id="search" type="text" placeholder="Search item ID, title, type, curriculum, or subcurriculum..." />
     </div>
 
-    <div class="panel" style="margin-bottom: 18px;">
+    <div class="panel sticky-tabs-panel" style="margin-bottom: 18px;">
       <h2>Direct Reports</h2>
       <div id="employee-tabs" class="muted">Loading direct reports...</div>
       <div id="employee-training-browser" class="muted" style="margin-top: 16px;">Click a direct report to view all assigned training.</div>
@@ -584,6 +590,14 @@
     }
 
       function showEmployeeInBrowser(employeeId) {
+        if (selectedEmployeeId === employeeId) {
+          selectedEmployeeId = null;
+          updateActiveEmployeeTabs();
+          employeeTrainingBrowserEl.className = "muted";
+          employeeTrainingBrowserEl.textContent = "Click a direct report to view all assigned training.";
+          return;
+        }
+
         selectedEmployeeId = employeeId;
         updateActiveEmployeeTabs();
 
@@ -594,6 +608,13 @@
           employeeTrainingBrowserEl.textContent = "No training found for this employee.";
           return;
         }
+
+        employeeTrainingBrowserEl.className = "";
+        employeeTrainingBrowserEl.innerHTML = `
+          <div class="summary-person-title">${escapeHtml(employeeData.employee_name)} (${escapeHtml(employeeData.employee_id)})</div>
+          ${renderEmployeeTrainingTable(employeeData.tree || [])}
+        `;
+      }
 
         employeeTrainingBrowserEl.className = "";
         employeeTrainingBrowserEl.innerHTML = `
@@ -724,21 +745,36 @@
         return `<div class="muted">No training found for this employee.</div>`;
       }
 
+      let longestTitleLength = 0;
+      for (const row of rows) {
+        const len = (row.item_title || "").length;
+        if (len > longestTitleLength) {
+          longestTitleLength = len;
+        }
+      }
+
+      const titleWidthCh = longestTitleLength + 10;
+
       return `
-        <table class="employee-training-table">
+        <table class="employee-training-table" style="width: auto;">
+          <colgroup>
+            <col style="width: auto;">
+            <col style="width: ${titleWidthCh}ch;">
+            <col style="width: auto;">
+          </colgroup>
           <thead>
             <tr>
+              <th>Item ID</th>
               <th>Item Title</th>
               <th>Item Type</th>
-              <th>Item ID</th>
             </tr>
           </thead>
           <tbody>
             ${rows.map(row => `
               <tr>
+                <td>${escapeHtml(row.item_id)}</td>
                 <td>${escapeHtml(row.item_title)}</td>
                 <td>${escapeHtml(row.item_type)}</td>
-                <td>${escapeHtml(row.item_id)}</td>
               </tr>
             `).join("")}
           </tbody>
