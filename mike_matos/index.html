@@ -232,7 +232,7 @@
       margin-top: 16px;
     }
 
-        .mini-tree {
+    .mini-tree {
       margin-top: 8px;
     }
 
@@ -503,8 +503,9 @@
       if (!fullData || !fullData.training_to_reports) return [];
       return fullData.training_to_reports[itemId] || [];
     }
-        function getTrainingForEmployee(employeeId) {
-      if (!fullData || !fullData.employee_training_lookup) return null;
+    function getTrainingForEmployee(employeeId) {
+      if (!fullData) return null;
+      if (!fullData.employee_training_lookup) return null;
       return fullData.employee_training_lookup[employeeId] || null;
     }
 
@@ -570,22 +571,24 @@
       `;
     }
 
-    function showTrainingForEmployee(employeeId) {
-      selectedEmployeeId = employeeId;
-      updateActiveEmployeeStyles();
+      function showTrainingForEmployee(employeeId) {
+        selectedEmployeeId = employeeId;
+        updateActiveEmployeeStyles();
 
-      const employeeData = getTrainingForEmployee(employeeId);
+        if (!selectedEmployeeTrainingEl) return;
 
-      if (!employeeData) {
-        selectedEmployeeTrainingEl.className = "muted";
-        selectedEmployeeTrainingEl.textContent = "No training found for this employee.";
-        return;
-      }
+        const employeeData = getTrainingForEmployee(employeeId);
 
-      selectedEmployeeTrainingEl.className = "";
-      selectedEmployeeTrainingEl.innerHTML = `
-        <div class="summary-person-title">${escapeHtml(employeeData.employee_name)} (${escapeHtml(employeeData.employee_id)})</div>
-        ${renderEmployeeTree(employeeData.tree || [])}
+        if (!employeeData) {
+          selectedEmployeeTrainingEl.className = "muted";
+          selectedEmployeeTrainingEl.textContent = "No training found for this employee.";
+          return;
+        }
+
+        selectedEmployeeTrainingEl.className = "";
+        selectedEmployeeTrainingEl.innerHTML = `
+          <div class="summary-person-title">${escapeHtml(employeeData.employee_name)} (${escapeHtml(employeeData.employee_id)})</div>
+          ${renderEmployeeTree(employeeData.tree || [])}
       `;
     }
     
@@ -913,9 +916,11 @@
         employeeListEl.className = "muted";
         employeeListEl.textContent = "No training selected.";
         selectedEmployeeId = null;
-        selectedEmployeeTrainingEl.className = "muted";
-        selectedEmployeeTrainingEl.textContent = "Click a direct report to view all assigned training.";
-      }
+
+        if (selectedEmployeeTrainingEl) {
+          selectedEmployeeTrainingEl.className = "muted";
+          selectedEmployeeTrainingEl.textContent = "Click a direct report to view all assigned training.";
+        }
       }
     });
 
