@@ -8,17 +8,17 @@ import json
 # 1. Pull User Curriculum Status report from SFLMS for each manager/supervisor. 
 
 #  Update each time
-SUPERVISOR_NAME = "Mike Matos" 
+SUPERVISOR_NAME = "Nick Barberio" 
 
 #  Update each time
-SUPERVISOR_EMAIL = "mike.matos@thermofisher.com"  
+SUPERVISOR_EMAIL = "nicholas.barberio@thermofisher.com"  
 
 # =========================
 # FILE PATHS
 # *****Update each time and use the full path
 # =========================
-csv_file = r"C:\Users\andrea.macgown\OneDrive - Thermo Fisher Scientific\Desktop\TRAINING SYSTEM\splice\mike_matos\mike_matos.csv"
-json_file = r"C:\Users\andrea.macgown\OneDrive - Thermo Fisher Scientific\Desktop\TRAINING SYSTEM\splice\mike_matos\mike_matos.json"
+csv_file = r"C:\Users\andrea.macgown\OneDrive - Thermo Fisher Scientific\Desktop\TRAINING SYSTEM\splice\npb\nickb.csv"
+json_file = r"C:\Users\andrea.macgown\OneDrive - Thermo Fisher Scientific\Desktop\TRAINING SYSTEM\splice\npb\nickb.json"
 
 '''
 1. In the HTML file, update 
@@ -81,7 +81,7 @@ employee_training_map = {}
 seen_employee_item_pairs = set()
 
 for _, row in df.iterrows():
-    employee_id = str(row.iloc[0]).strip()
+    employee_id = str(row.iloc[0]).strip().zfill(8)
 
     first_name = str(row.iloc[2]).strip()
     last_name = str(row.iloc[3]).strip()
