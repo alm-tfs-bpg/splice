@@ -323,6 +323,26 @@
       border-color: #82aef5;
       font-weight: 700;
     }
+
+    .employee-training-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    .employee-training-table th,
+    .employee-training-table td {
+      border: 1px solid #d9d9d9;
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+    }
+
+    .employee-training-table th {
+      font-weight: 700;
+      background: transparent;
+    }
   </style>
 </head>
 <body>
@@ -563,24 +583,24 @@
       });
     }
 
-    function showEmployeeInBrowser(employeeId) {
-      selectedEmployeeId = employeeId;
-      updateActiveEmployeeTabs();
+      function showEmployeeInBrowser(employeeId) {
+        selectedEmployeeId = employeeId;
+        updateActiveEmployeeTabs();
 
-      const employeeData = getTrainingForEmployee(employeeId);
+        const employeeData = getTrainingForEmployee(employeeId);
 
-      if (!employeeData) {
-        employeeTrainingBrowserEl.className = "muted";
-        employeeTrainingBrowserEl.textContent = "No training found for this employee.";
-        return;
+        if (!employeeData) {
+          employeeTrainingBrowserEl.className = "muted";
+          employeeTrainingBrowserEl.textContent = "No training found for this employee.";
+          return;
+        }
+
+        employeeTrainingBrowserEl.className = "";
+        employeeTrainingBrowserEl.innerHTML = `
+          <div class="summary-person-title">${escapeHtml(employeeData.employee_name)} (${escapeHtml(employeeData.employee_id)})</div>
+          ${renderEmployeeTrainingTable(employeeData.tree || [])}
+        `;
       }
-
-      employeeTrainingBrowserEl.className = "";
-      employeeTrainingBrowserEl.innerHTML = `
-        <div class="summary-person-title">${escapeHtml(employeeData.employee_name)} (${escapeHtml(employeeData.employee_id)})</div>
-        ${renderEmployeeTree(employeeData.tree || [])}
-      `;
-    }
 
     function renderEmployeeTabs() {
       const employees = getAllEmployees();
@@ -672,7 +692,33 @@
         </div>
       `;
     }
+    
+    function flattenEmployeeTrainingRows(tree) {
+      const rows = [];
 
+      for (const curr of (tree || [])) {
+        for (const sub of (curr.subcurriculums || [])) {
+          for (const item of (sub.items || [])) {
+            rows.push({
+              item_title: item.item_title || "",
+              item_type: item.item_type || "",
+              item_id: item.item_id || ""
+            });
+          }
+        }
+      }
+
+      rows.sort((a, b) => {
+        const aText = `${a.item_title} ${a.item_id}`.toLowerCase();
+        const bText = `${b.item_title} ${b.item_id}`.toLowerCase();
+        return aText.localeCompare(bText);
+      });
+
+      return rows;
+    }
+
+
+    
     function showTrainingForEmployee(employeeId) {
       selectedEmployeeId = employeeId;
       updateActiveEmployeeStyles();
