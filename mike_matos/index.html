@@ -73,6 +73,13 @@
       overflow-y: auto;
     }
 
+    .sticky-tabs-panel {
+      position: sticky;
+      top: 20px;
+      z-index: 10;
+      margin-bottom: 18px;
+    }
+
     .panel h2, .panel h3 {
       margin-top: 0;
     }
@@ -232,24 +239,6 @@
       margin-top: 16px;
     }
 
-    .mini-tree {
-      margin-top: 8px;
-    }
-
-    .mini-tree .node > summary {
-      font-size: 15px;
-      padding: 8px 10px;
-    }
-
-    .mini-tree .subcurriculum-title {
-      font-size: 13px;
-    }
-
-    .mini-tree .itemline {
-      font-size: 13px;
-      cursor: default;
-    }
-
     button {
       padding: 10px 14px;
       border: 1px solid #c8c8c8;
@@ -286,17 +275,6 @@
       color: #444;
     }
 
-    @media (max-width: 980px) {
-      .layout {
-        grid-template-columns: 1fr;
-      }
-
-      .sticky-panel {
-        position: static;
-        max-height: none;
-        overflow-y: visible;
-      }
-    }
     .employee-tabs-wrap {
       display: flex;
       flex-wrap: wrap;
@@ -325,7 +303,7 @@
     }
 
     .employee-training-table {
-      width: 100%;
+      width: auto;
       border-collapse: collapse;
       margin-top: 10px;
     }
@@ -344,10 +322,17 @@
       background: transparent;
     }
 
-    .sticky-tabs-panel {
-      position: sticky;
-      top: 20px;
-      z-index: 10;
+    @media (max-width: 980px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .sticky-panel,
+      .sticky-tabs-panel {
+        position: static;
+        max-height: none;
+        overflow-y: visible;
+      }
     }
   </style>
 </head>
@@ -360,7 +345,7 @@
       <input id="search" type="text" placeholder="Search item ID, title, type, curriculum, or subcurriculum..." />
     </div>
 
-    <div class="panel sticky-tabs-panel" style="margin-bottom: 18px;">
+    <div class="panel sticky-tabs-panel">
       <h2>Direct Reports</h2>
       <div id="employee-tabs" class="muted">Loading direct reports...</div>
       <div id="employee-training-browser" class="muted" style="margin-top: 16px;">Click a direct report to view all assigned training.</div>
@@ -403,19 +388,7 @@
   </div>
 
   <script>
-
     const params = new URLSearchParams(window.location.search);
-
-    /* 
-      Change FILENAME
-        Original
-         const DATA_FILE = "./FILENAME.json";
-      
-        File name "./test_file.json"
-
-        Change code to 
-          const DATA_FILE = "./test_file.json";
-    */
     const DATA_FILE = "./mike_matos.json";
 
     const STORAGE_KEY = "training_removal_progress_" + DATA_FILE;
@@ -563,9 +536,9 @@
       if (!fullData || !fullData.training_to_reports) return [];
       return fullData.training_to_reports[itemId] || [];
     }
+
     function getTrainingForEmployee(employeeId) {
-      if (!fullData) return null;
-      if (!fullData.employee_training_lookup) return null;
+      if (!fullData || !fullData.employee_training_lookup) return null;
       return fullData.employee_training_lookup[employeeId] || null;
     }
 
@@ -589,39 +562,112 @@
       });
     }
 
-      function showEmployeeInBrowser(employeeId) {
-        if (selectedEmployeeId === employeeId) {
-          selectedEmployeeId = null;
-          updateActiveEmployeeTabs();
-          employeeTrainingBrowserEl.className = "muted";
-          employeeTrainingBrowserEl.textContent = "Click a direct report to view all assigned training.";
-          return;
+    function updateActiveEmployeeStyles() {
+      document.querySelectorAll(".employee-main").forEach(el => {
+        if (el.dataset.employeeId === selectedEmployeeId) {
+          el.classList.add("active-employee");
+        } else {
+          el.classList.remove("active-employee");
         }
+      });
+    }
 
-        selectedEmployeeId = employeeId;
+    function flattenEmployeeTrainingRows(tree) {
+      const rows = [];
+
+      for (const curr of (tree || [])) {
+        for (const sub of (curr.subcurriculums || [])) {
+          for (const item of (sub.items || [])) {
+            rows.push({
+              item_title: item.item_title || "",
+              item_type: item.item_type || "",
+              item_id: item.item_id || ""
+            });
+          }
+        }
+      }
+
+      rows.sort((a, b) => {
+        const aText = `${a.item_title} ${a.item_id}`.toLowerCase();
+        const bText = `${b.item_title} ${b.item_id}`.toLowerCase();
+        return aText.localeCompare(bText);
+      });
+
+      return rows;
+    }
+
+    function renderEmployeeTrainingTable(tree) {
+      const rows = flattenEmployeeTrainingRows(tree);
+
+      if (!rows.length) {
+        return `<div class="muted">No training found for this employee.</div>`;
+      }
+
+      let longestTitleLength = 0;
+      for (const row of rows) {
+        const len = (row.item_title || "").length;
+        if (len > longestTitleLength) {
+          longestTitleLength = len;
+        }
+      }
+
+      const titleWidthCh = longestTitleLength + 10;
+
+      return `
+        <table class="employee-training-table">
+          <colgroup>
+            <col style="width: auto;">
+            <col style="width: ${titleWidthCh}ch;">
+            <col style="width: auto;">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Item ID</th>
+              <th>Item Title</th>
+              <th>Item Type</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(row => `
+              <tr>
+                <td>${escapeHtml(row.item_id)}</td>
+                <td>${escapeHtml(row.item_title)}</td>
+                <td>${escapeHtml(row.item_type)}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      `;
+    }
+
+    function showEmployeeInBrowser(employeeId) {
+      if (selectedEmployeeId === employeeId) {
+        selectedEmployeeId = null;
         updateActiveEmployeeTabs();
-
-        const employeeData = getTrainingForEmployee(employeeId);
-
-        if (!employeeData) {
-          employeeTrainingBrowserEl.className = "muted";
-          employeeTrainingBrowserEl.textContent = "No training found for this employee.";
-          return;
-        }
-
-        employeeTrainingBrowserEl.className = "";
-        employeeTrainingBrowserEl.innerHTML = `
-          <div class="summary-person-title">${escapeHtml(employeeData.employee_name)} (${escapeHtml(employeeData.employee_id)})</div>
-          ${renderEmployeeTrainingTable(employeeData.tree || [])}
-        `;
+        updateActiveEmployeeStyles();
+        employeeTrainingBrowserEl.className = "muted";
+        employeeTrainingBrowserEl.textContent = "Click a direct report to view all assigned training.";
+        return;
       }
 
-        employeeTrainingBrowserEl.className = "";
-        employeeTrainingBrowserEl.innerHTML = `
-          <div class="summary-person-title">${escapeHtml(employeeData.employee_name)} (${escapeHtml(employeeData.employee_id)})</div>
-          ${renderEmployeeTrainingTable(employeeData.tree || [])}
-        `;
+      selectedEmployeeId = employeeId;
+      updateActiveEmployeeTabs();
+      updateActiveEmployeeStyles();
+
+      const employeeData = getTrainingForEmployee(employeeId);
+
+      if (!employeeData) {
+        employeeTrainingBrowserEl.className = "muted";
+        employeeTrainingBrowserEl.textContent = "No training found for this employee.";
+        return;
       }
+
+      employeeTrainingBrowserEl.className = "";
+      employeeTrainingBrowserEl.innerHTML = `
+        <div class="summary-person-title">${escapeHtml(employeeData.employee_name)} (${escapeHtml(employeeData.employee_id)})</div>
+        ${renderEmployeeTrainingTable(employeeData.tree || [])}
+      `;
+    }
 
     function renderEmployeeTabs() {
       const employees = getAllEmployees();
@@ -650,16 +696,6 @@
 
       employeeTabsEl.appendChild(wrap);
       updateActiveEmployeeTabs();
-    }
-
-    function updateActiveEmployeeStyles() {
-      document.querySelectorAll(".employee-main").forEach(el => {
-        if (el.dataset.employeeId === selectedEmployeeId) {
-          el.classList.add("active-employee");
-        } else {
-          el.classList.remove("active-employee");
-        }
-      });
     }
 
     function renderEmployeeTree(tree) {
@@ -713,78 +749,11 @@
         </div>
       `;
     }
-    
-    function flattenEmployeeTrainingRows(tree) {
-      const rows = [];
 
-      for (const curr of (tree || [])) {
-        for (const sub of (curr.subcurriculums || [])) {
-          for (const item of (sub.items || [])) {
-            rows.push({
-              item_title: item.item_title || "",
-              item_type: item.item_type || "",
-              item_id: item.item_id || ""
-            });
-          }
-        }
-      }
-
-      rows.sort((a, b) => {
-        const aText = `${a.item_title} ${a.item_id}`.toLowerCase();
-        const bText = `${b.item_title} ${b.item_id}`.toLowerCase();
-        return aText.localeCompare(bText);
-      });
-
-      return rows;
-    }
-
-    function renderEmployeeTrainingTable(tree) {
-      const rows = flattenEmployeeTrainingRows(tree);
-
-      if (!rows.length) {
-        return `<div class="muted">No training found for this employee.</div>`;
-      }
-
-      let longestTitleLength = 0;
-      for (const row of rows) {
-        const len = (row.item_title || "").length;
-        if (len > longestTitleLength) {
-          longestTitleLength = len;
-        }
-      }
-
-      const titleWidthCh = longestTitleLength + 10;
-
-      return `
-        <table class="employee-training-table" style="width: auto;">
-          <colgroup>
-            <col style="width: auto;">
-            <col style="width: ${titleWidthCh}ch;">
-            <col style="width: auto;">
-          </colgroup>
-          <thead>
-            <tr>
-              <th>Item ID</th>
-              <th>Item Title</th>
-              <th>Item Type</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rows.map(row => `
-              <tr>
-                <td>${escapeHtml(row.item_id)}</td>
-                <td>${escapeHtml(row.item_title)}</td>
-                <td>${escapeHtml(row.item_type)}</td>
-              </tr>
-            `).join("")}
-          </tbody>
-        </table>
-      `;
-    }
-    
     function showTrainingForEmployee(employeeId) {
       selectedEmployeeId = employeeId;
       updateActiveEmployeeStyles();
+      updateActiveEmployeeTabs();
 
       if (!selectedEmployeeTrainingEl) return;
 
@@ -802,7 +771,7 @@
         ${renderEmployeeTree(employeeData.tree || [])}
       `;
     }
-    
+
     function updateActiveItemStyles() {
       document.querySelectorAll(".clickable-item").forEach(el => {
         if (el.dataset.itemId === selectedItemId) {
@@ -869,15 +838,8 @@
           row.appendChild(textWrap);
           employeeListEl.appendChild(row);
         });
+
       updateActiveEmployeeStyles();
-    }
-
-    function currText(curr) {
-      return `${curr.parent_curriculum_id || ""} ${curr.parent_curriculum_title || ""}`.toLowerCase();
-    }
-
-    function subText(sub) {
-      return `${sub.subcurriculum_id || ""} ${sub.subcurriculum_title || ""}`.toLowerCase();
     }
 
     function itemText(item, curr, sub) {
@@ -914,11 +876,7 @@
         for (const sub of (curr.subcurriculums || [])) {
           for (const item of (sub.items || [])) {
             if (itemText(item, curr, sub).includes(q)) {
-              matches.push({
-                curr,
-                sub,
-                item
-              });
+              matches.push({ curr, sub, item });
             }
           }
         }
@@ -978,9 +936,9 @@
 
         const currSummary = document.createElement("summary");
         currSummary.innerHTML = `
-            <div><strong>Curriculum:</strong></div>
-            <div><code>${escapeHtml(curr.parent_curriculum_id)}</code></div>
-            <div>${escapeHtml(curr.parent_curriculum_title)}</div>
+          <div><strong>Curriculum:</strong></div>
+          <div><code>${escapeHtml(curr.parent_curriculum_id)}</code></div>
+          <div>${escapeHtml(curr.parent_curriculum_title)}</div>
         `;
         currDetails.appendChild(currSummary);
 
@@ -999,9 +957,9 @@
             const subTitle = document.createElement("div");
             subTitle.className = "subcurriculum-title";
             subTitle.innerHTML = `
-            <div>SUBCURRICULUM: </div>
-            <div><code>${escapeHtml(sub.subcurriculum_id)}</code></div>
-            <div>  ${escapeHtml(sub.subcurriculum_title)}</div>
+              <div>SUBCURRICULUM: </div>
+              <div><code>${escapeHtml(sub.subcurriculum_id)}</code></div>
+              <div>${escapeHtml(sub.subcurriculum_title)}</div>
             `;
             subBlock.appendChild(subTitle);
 
@@ -1132,6 +1090,10 @@
           selectedEmployeeTrainingEl.className = "muted";
           selectedEmployeeTrainingEl.textContent = "Click a direct report to view all assigned training.";
         }
+
+        employeeTrainingBrowserEl.className = "muted";
+        employeeTrainingBrowserEl.textContent = "Click a direct report to view all assigned training.";
+        updateActiveEmployeeTabs();
       }
     });
 
@@ -1139,33 +1101,33 @@
       renderTree(e.target.value);
     });
 
-  fetch(DATA_FILE)
-    .then(res => {
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status} loading ${DATA_FILE}`);
-      }
-      return res.json();
-    })
-    .then(data => {
-      fullData = data;
-      treeData = data.tree || [];
-      selectedItems = loadSavedSelections();
+    fetch(DATA_FILE)
+      .then(res => {
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status} loading ${DATA_FILE}`);
+        }
+        return res.json();
+      })
+      .then(data => {
+        fullData = data;
+        treeData = data.tree || [];
+        selectedItems = loadSavedSelections();
 
-      renderTree("");
-      renderEmployeeTabs();
-      renderSelectionSummary();
+        renderTree("");
+        renderEmployeeTabs();
+        renderSelectionSummary();
 
-      const supervisorName = data?.supervisor?.name || "";
-      if (supervisorName) {
-        document.title = `SFLMS Direct Reports Training Items List - ${supervisorName}`;
-        pageTitleEl.textContent = `${supervisorName} Direct Reports Training List`;
-      }
-    })
-    .catch(err => {
-      console.error("Fetch failed:", err);
-      app.className = "muted";
-      app.textContent = `Could not load supervisor data: ${err.message}`;
-    });
+        const supervisorName = data?.supervisor?.name || "";
+        if (supervisorName) {
+          document.title = `SFLMS Direct Reports Training Items List - ${supervisorName}`;
+          pageTitleEl.textContent = `${supervisorName} Direct Reports Training List`;
+        }
+      })
+      .catch(err => {
+        console.error("Fetch failed:", err);
+        app.className = "muted";
+        app.textContent = `Could not load supervisor data: ${err.message}`;
+      });
   </script>
 </body>
 </html>
