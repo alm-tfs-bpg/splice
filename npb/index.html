@@ -1010,36 +1010,38 @@
       updateActiveItemStyles();
     }
 
-  function buildEmailBody() {
-    const grouped = groupSelectionsByPerson(selectedItems);
-    const supervisorName = fullData?.supervisor?.name || "";
-    const supervisorEmail = fullData?.supervisor?.email || "";
+    function buildEmailBody() {
+      const grouped = groupSelectionsByPerson(selectedItems);
+      const supervisorName = fullData?.supervisor?.name || "";
+      const supervisorEmail = fullData?.supervisor?.email || "";
 
-    function padTabs(value, width) {
-      return String(value || "").padEnd(width, " ");
-    }
-
-    let body = "";
-    body += `Supervisor: ${supervisorName}\n`;
-    body += `Supervisor Email: ${supervisorEmail}\n\n`;
-    body += `Please remove the following training assignments:\n\n`;
-
-    for (const person of grouped) {
-      body += `${person.employee_name} (${formatEmployeeId(person.employee_id)})\n`;
-      body += `${padTabs("Item ID", 20)}\tItem Title\n`;
-
-      for (const item of person.items) {
-        body += `${padTabs(item.item_id || "", 20)}\t${item.item_title || ""}\n`;
+      function padRight(value, width) {
+        return String(value || "").padEnd(width, " ");
       }
 
-      body += `\n`;
+      const ITEM_ID_WIDTH = 20;
+
+      let body = "";
+      body += `Supervisor: ${supervisorName}\n`;
+      body += `Supervisor Email: ${supervisorEmail}\n\n`;
+      body += `Please remove the following training assignments:\n\n`;
+
+      for (const person of grouped) {
+        body += `${person.employee_name} (${formatEmployeeId(person.employee_id)})\n`;
+        body += `${padRight("Item ID", ITEM_ID_WIDTH)}Item Title\n`;
+
+        for (const item of person.items) {
+          body += `${padRight(item.item_id || "", ITEM_ID_WIDTH)}${item.item_title || ""}\n`;
+        }
+
+        body += `\n`;
+      }
+
+      body += `Total employees affected: ${grouped.length}\n`;
+      body += `Total assignments to remove: ${selectedItems.length}\n`;
+
+      return body;
     }
-
-    body += `Total employees affected: ${grouped.length}\n`;
-    body += `Total assignments to remove: ${selectedItems.length}\n`;
-
-    return body;
-}
 
 
       createEmailBtn.addEventListener("click", () => {
