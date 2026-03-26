@@ -1015,12 +1015,6 @@
       const supervisorName = fullData?.supervisor?.name || "";
       const supervisorEmail = fullData?.supervisor?.email || "";
 
-      function padRight(value, width) {
-        return String(value || "").padEnd(width, " ");
-      }
-
-      const ITEM_ID_WIDTH = 20;
-
       let body = "";
       body += `Supervisor: ${supervisorName}\n`;
       body += `Supervisor Email: ${supervisorEmail}\n\n`;
@@ -1028,10 +1022,10 @@
 
       for (const person of grouped) {
         body += `${person.employee_name} (${formatEmployeeId(person.employee_id)})\n`;
-        body += `${padRight("Item ID", ITEM_ID_WIDTH)}Item Title\n`;
+        body += `Item ID\t\t\t\t\tItem Title\n`;
 
         for (const item of person.items) {
-          body += `${padRight(item.item_id || "", ITEM_ID_WIDTH)}${item.item_title || ""}\n`;
+          body += `${item.item_id || ""}\t${item.item_title || ""}\n`;
         }
 
         body += `\n`;
