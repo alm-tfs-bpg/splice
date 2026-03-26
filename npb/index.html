@@ -73,6 +73,14 @@
       overflow-y: auto;
     }
 
+    .sticky-tabs-bar {
+      position: sticky;
+      top: 20px;
+      z-index: 10;
+      background: #fff;
+      padding-bottom: 8px;
+    }
+
     .panel h2, .panel h3 {
       margin-top: 0;
     }
@@ -232,24 +240,6 @@
       margin-top: 16px;
     }
 
-        .mini-tree {
-      margin-top: 8px;
-    }
-
-    .mini-tree .node > summary {
-      font-size: 15px;
-      padding: 8px 10px;
-    }
-
-    .mini-tree .subcurriculum-title {
-      font-size: 13px;
-    }
-
-    .mini-tree .itemline {
-      font-size: 13px;
-      cursor: default;
-    }
-
     button {
       padding: 10px 14px;
       border: 1px solid #c8c8c8;
@@ -286,12 +276,60 @@
       color: #444;
     }
 
+    .employee-tabs-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .employee-tab {
+      padding: 8px 12px;
+      border: 1px solid #cfcfcf;
+      border-radius: 999px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 14px;
+      font-family: Arial, sans-serif;
+    }
+
+    .employee-tab:hover {
+      background: #eef5ff;
+      border-color: #b9d3ff;
+    }
+
+    .employee-tab.active-tab {
+      background: #dfeeff;
+      border-color: #82aef5;
+      font-weight: 700;
+    }
+
+    .employee-training-table {
+      width: auto;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    .employee-training-table th,
+    .employee-training-table td {
+      border: 1px solid #d9d9d9;
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+    }
+
+    .employee-training-table th {
+      font-weight: 700;
+      background: transparent;
+    }
+
     @media (max-width: 980px) {
       .layout {
         grid-template-columns: 1fr;
       }
 
-      .sticky-panel {
+      .sticky-panel,
+      .sticky-tabs-bar {
         position: static;
         max-height: none;
         overflow-y: visible;
@@ -306,6 +344,16 @@
 
     <div class="toolbar">
       <input id="search" type="text" placeholder="Search item ID, title, type, curriculum, or subcurriculum..." />
+    </div>
+
+    <div class="panel" style="margin-bottom: 18px;">
+      <h2>Direct Reports</h2>
+
+      <div class="sticky-tabs-bar">
+        <div id="employee-tabs" class="muted">Loading direct reports...</div>
+      </div>
+
+      <div id="employee-training-browser" class="muted" style="margin-top: 16px;">Click a direct report to view all assigned training.</div>
     </div>
 
     <div class="layout">
@@ -345,10 +393,8 @@
   </div>
 
   <script>
-
     
-
-    /* 
+        /* 
       Change FILENAME
         Original
          const DATA_FILE = "./FILENAME.json";
@@ -358,512 +404,417 @@
         Change code to 
           const DATA_FILE = "./test_file.json";
     */
+    const params = new URLSearchParams(window.location.search);
+    const DATA_FILE = "./nickb.json";
 
-  const params = new URLSearchParams(window.location.search);
+    const STORAGE_KEY = "training_removal_progress_" + DATA_FILE;
+    const EMAIL_TO = "andrea.macgown@thermofisher.com";
 
-  const DATA_FILE = "./nickb.json";
+    const app = document.getElementById("app");
+    const search = document.getElementById("search");
+    const employeeTabsEl = document.getElementById("employee-tabs");
+    const employeeTrainingBrowserEl = document.getElementById("employee-training-browser");
+    const pageTitleEl = document.getElementById("page-title");
+    const selectedTrainingEl = document.getElementById("selected-training");
+    const selectedTrainingDetailsEl = document.getElementById("selected-training-details");
+    const employeeListEl = document.getElementById("employee-list");
+    const selectedEmployeeTrainingEl = document.getElementById("selected-employee-training");
+    const selectionSummaryEl = document.getElementById("selection-summary");
+    const createEmailBtn = document.getElementById("create-email-btn");
+    const clearProgressBtn = document.getElementById("clear-progress-btn");
+    const savedNoteEl = document.getElementById("saved-note");
 
-  const STORAGE_KEY = "training_removal_progress_" + DATA_FILE;
-  const EMAIL_TO = "andrea.macgown@thermofisher.com";
+    let fullData = null;
+    let treeData = [];
+    let selectedItemId = null;
+    let selectedEmployeeId = null;
+    let selectedItems = [];
 
-  const app = document.getElementById("app");
-  const search = document.getElementById("search");
-  const pageTitleEl = document.getElementById("page-title");
-  const selectedTrainingEl = document.getElementById("selected-training");
-  const selectedTrainingDetailsEl = document.getElementById("selected-training-details");
-  const employeeListEl = document.getElementById("employee-list");
-  const selectedEmployeeTrainingEl = document.getElementById("selected-employee-training");
-  const selectionSummaryEl = document.getElementById("selection-summary");
-  const createEmailBtn = document.getElementById("create-email-btn");
-  const clearProgressBtn = document.getElementById("clear-progress-btn");
-  const savedNoteEl = document.getElementById("saved-note");
-
-  let fullData = null;
-  let treeData = [];
-  let selectedItemId = null;
-  let selectedEmployeeId = null;
-  let selectedItems = [];
-
-  function escapeHtml(value) {
-    return String(value ?? "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#39;");
-  }
-
-  function loadSavedSelections() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return [];
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (err) {
-      console.error("Could not load saved selections:", err);
-      return [];
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
     }
-  }
 
-  function saveSelections() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(selectedItems));
-    savedNoteEl.textContent = "Progress saved automatically in this browser.";
-  }
+    function loadSavedSelections() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (err) {
+        console.error("Could not load saved selections:", err);
+        return [];
+      }
+    }
 
-  function makeSelectionKey(record) {
-    return [
-      record.employee_id || "",
-      record.item_id || ""
-    ].join("|");
-  }
+    function saveSelections() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(selectedItems));
+      savedNoteEl.textContent = "Progress saved automatically in this browser.";
+    }
 
-  function isSelected(record) {
-    const key = makeSelectionKey(record);
-    return selectedItems.some(x => makeSelectionKey(x) === key);
-  }
+    function makeSelectionKey(record) {
+      return [
+        record.employee_id || "",
+        record.item_id || ""
+      ].join("|");
+    }
 
-  function addSelection(record) {
-    if (!isSelected(record)) {
-      selectedItems.push(record);
+    function isSelected(record) {
+      const key = makeSelectionKey(record);
+      return selectedItems.some(x => makeSelectionKey(x) === key);
+    }
+
+    function addSelection(record) {
+      if (!isSelected(record)) {
+        selectedItems.push(record);
+        saveSelections();
+      }
+    }
+
+    function removeSelection(record) {
+      const key = makeSelectionKey(record);
+      selectedItems = selectedItems.filter(x => makeSelectionKey(x) !== key);
       saveSelections();
     }
-  }
 
-  function removeSelection(record) {
-    const key = makeSelectionKey(record);
-    selectedItems = selectedItems.filter(x => makeSelectionKey(x) !== key);
-    saveSelections();
-  }
+    function groupSelectionsByPerson(items) {
+      const grouped = {};
 
-  function groupSelectionsByPerson(items) {
-    const grouped = {};
+      for (const item of items) {
+        const personKey = [item.employee_name || "", item.employee_id || ""].join("|");
 
-    for (const item of items) {
-      const personKey = [item.employee_name || "", item.employee_id || ""].join("|");
+        if (!grouped[personKey]) {
+          grouped[personKey] = {
+            employee_name: item.employee_name || "",
+            employee_id: item.employee_id || "",
+            items: []
+          };
+        }
 
-      if (!grouped[personKey]) {
-        grouped[personKey] = {
-          employee_name: item.employee_name || "",
-          employee_id: item.employee_id || "",
-          items: []
-        };
+        grouped[personKey].items.push(item);
       }
 
-      grouped[personKey].items.push(item);
-    }
+      const people = Object.values(grouped);
 
-    const people = Object.values(grouped);
-
-    people.sort((a, b) => {
-      const aText = `${a.employee_name} ${a.employee_id}`.toLowerCase();
-      const bText = `${b.employee_name} ${b.employee_id}`.toLowerCase();
-      return aText.localeCompare(bText);
-    });
-
-    for (const person of people) {
-      person.items.sort((a, b) => {
-        const aText = `${a.item_title} ${a.item_id}`.toLowerCase();
-        const bText = `${b.item_title} ${b.item_id}`.toLowerCase();
-        return aText.localeCompare(bText);
-      });
-    }
-
-    return people;
-  }
-
-  function renderSelectionSummary() {
-    if (!selectedItems.length) {
-      selectionSummaryEl.className = "muted";
-      selectionSummaryEl.textContent = "No removals selected yet.";
-      return;
-    }
-
-    const grouped = groupSelectionsByPerson(selectedItems);
-
-    selectionSummaryEl.className = "";
-    selectionSummaryEl.innerHTML = grouped.map(person => {
-      const itemsHtml = person.items.map(item => `
-        <div class="summary-item">
-          <div><strong>Item ID:</strong> ${escapeHtml(item.item_id)}</div>
-          <div><strong>Item Title:</strong> ${escapeHtml(item.item_title)}</div>
-          <div><strong>SUBCURRICULUM ID:</strong> ${escapeHtml(item.subcurriculum_id)}</div>
-          <div><strong>Subcurriculum Title:</strong> ${escapeHtml(item.subcurriculum_title)}</div>
-          <div><strong>Parent Curriculum ID:</strong> ${escapeHtml(item.parent_curriculum_id)}</div>
-          <div><strong>Parent Curriculum Title:</strong> ${escapeHtml(item.parent_curriculum_title)}</div>
-        </div>
-      `).join("");
-
-      return `
-        <div class="summary-person">
-          <div class="summary-person-title">${escapeHtml(person.employee_name)} (${escapeHtml(person.employee_id)})</div>
-          ${itemsHtml}
-        </div>
-      `;
-    }).join("");
-  }
-
-  function getReportsForItem(itemId) {
-    if (!fullData || !fullData.training_to_reports) return [];
-    return fullData.training_to_reports[itemId] || [];
-  }
-
-  function getTrainingForEmployee(employeeId) {
-    if (!fullData || !fullData.employee_training_lookup) return null;
-    return fullData.employee_training_lookup[employeeId] || null;
-  }
-
-  function updateActiveEmployeeStyles() {
-    document.querySelectorAll(".employee-main").forEach(el => {
-      if (el.dataset.employeeId === selectedEmployeeId) {
-        el.classList.add("active-employee");
-      } else {
-        el.classList.remove("active-employee");
-      }
-    });
-  }
-
-  function renderEmployeeTree(tree) {
-    if (!tree || !tree.length) {
-      return `<div class="muted">No training found for this employee.</div>`;
-    }
-
-    return `
-      <div class="mini-tree">
-        ${tree.map(curr => `
-          <details class="node">
-            <summary>
-              <div><strong>Curriculum:</strong></div>
-              <div><code>${escapeHtml(curr.parent_curriculum_id)}</code></div>
-              <div>${escapeHtml(curr.parent_curriculum_title || "")}</div>
-            </summary>
-            <div class="indent">
-              ${(curr.subcurriculums || []).map(sub => {
-                const sameAsCurriculum =
-                  (sub.subcurriculum_id || "") === (curr.parent_curriculum_id || "") &&
-                  (sub.subcurriculum_title || "") === (curr.parent_curriculum_title || "");
-
-                if (sameAsCurriculum) {
-                  return (sub.items || []).map(item => `
-                    <div class="itemline">
-                      <div class="item-id-line"><code>${escapeHtml(item.item_id)}</code>${item.item_type ? ` - ${escapeHtml(item.item_type)}` : ""}</div>
-                      <div class="item-title-line">${escapeHtml(item.item_title || "")}</div>
-                    </div>
-                  `).join("");
-                }
-
-                return `
-                  <div class="subcurriculum-block">
-                    <div class="subcurriculum-title">
-                      <div>SUBCURRICULUM: </div>
-                      <div><code>${escapeHtml(sub.subcurriculum_id)}</code></div>
-                      <div>${escapeHtml(sub.subcurriculum_title || "")}</div>
-                    </div>
-                    ${(sub.items || []).map(item => `
-                      <div class="itemline">
-                        <div class="item-id-line"><code>${escapeHtml(item.item_id)}</code>${item.item_type ? ` - ${escapeHtml(item.item_type)}` : ""}</div>
-                        <div class="item-title-line">${escapeHtml(item.item_title || "")}</div>
-                      </div>
-                    `).join("")}
-                  </div>
-                `;
-              }).join("")}
-            </div>
-          </details>
-        `).join("")}
-      </div>
-    `;
-  }
-
-  function showTrainingForEmployee(employeeId) {
-    selectedEmployeeId = employeeId;
-    updateActiveEmployeeStyles();
-
-    const employeeData = getTrainingForEmployee(employeeId);
-
-    if (!employeeData) {
-      selectedEmployeeTrainingEl.className = "muted";
-      selectedEmployeeTrainingEl.textContent = "No training found for this employee.";
-      return;
-    }
-
-    selectedEmployeeTrainingEl.className = "";
-    selectedEmployeeTrainingEl.innerHTML = `
-      <div class="summary-person-title">${escapeHtml(employeeData.employee_name)} (${escapeHtml(employeeData.employee_id)})</div>
-      ${renderEmployeeTree(employeeData.tree || [])}
-    `;
-  }
-
-  function updateActiveItemStyles() {
-    document.querySelectorAll(".clickable-item").forEach(el => {
-      if (el.dataset.itemId === selectedItemId) {
-        el.classList.add("active-item");
-      } else {
-        el.classList.remove("active-item");
-      }
-    });
-  }
-
-  function showEmployeesForTraining(item) {
-    selectedItemId = item.item_id;
-    updateActiveItemStyles();
-
-    selectedTrainingEl.innerHTML = `
-      <div class="selected-item-id">${escapeHtml(item.item_id)}</div>
-      <div class="selected-item-title">${escapeHtml(item.item_title || "")}</div>
-    `;
-
-    selectedTrainingDetailsEl.textContent = item.item_type ? `Item Type: ${item.item_type}` : "";
-
-    const reports = getReportsForItem(item.item_id);
-
-    if (!reports.length) {
-      employeeListEl.className = "muted";
-      employeeListEl.textContent = "No direct reports found for this training.";
-      return;
-    }
-
-    employeeListEl.className = "";
-    employeeListEl.innerHTML = "";
-
-    reports
-      .slice()
-      .sort((a, b) => {
+      people.sort((a, b) => {
         const aText = `${a.employee_name} ${a.employee_id}`.toLowerCase();
         const bText = `${b.employee_name} ${b.employee_id}`.toLowerCase();
         return aText.localeCompare(bText);
-      })
-      .forEach(person => {
-        const row = document.createElement("div");
-        row.className = "employee-row";
-
-        const checkbox = document.createElement("input");
-        checkbox.type = "checkbox";
-        checkbox.checked = isSelected(person);
-
-        checkbox.addEventListener("change", () => {
-          if (checkbox.checked) {
-            addSelection(person);
-          } else {
-            removeSelection(person);
-          }
-          renderSelectionSummary();
-        });
-
-        const textWrap = document.createElement("div");
-        textWrap.className = "employee-main";
-        textWrap.dataset.employeeId = person.employee_id;
-        textWrap.innerHTML = `<div><strong>${escapeHtml(person.employee_name)}</strong> (${escapeHtml(person.employee_id)})</div>`;
-        textWrap.addEventListener("click", () => showTrainingForEmployee(person.employee_id));
-
-        row.appendChild(checkbox);
-        row.appendChild(textWrap);
-        employeeListEl.appendChild(row);
       });
 
-    updateActiveEmployeeStyles();
-  }
+      for (const person of people) {
+        person.items.sort((a, b) => {
+          const aText = `${a.item_title} ${a.item_id}`.toLowerCase();
+          const bText = `${b.item_title} ${b.item_id}`.toLowerCase();
+          return aText.localeCompare(bText);
+        });
+      }
 
-  function itemText(item, curr, sub) {
-    return `
-      ${item.item_id || ""}
-      ${item.item_type || ""}
-      ${item.item_title || ""}
-      ${curr.parent_curriculum_id || ""}
-      ${curr.parent_curriculum_title || ""}
-      ${sub.subcurriculum_id || ""}
-      ${sub.subcurriculum_title || ""}
-    `.toLowerCase();
-  }
+      return people;
+    }
 
-  function renderItemLine(item) {
-    const line = document.createElement("div");
-    line.className = "itemline clickable-item";
-    line.dataset.itemId = item.item_id;
-    line.innerHTML = `
-      <div class="item-id-line"><code>${escapeHtml(item.item_id)}</code>${item.item_type ? ` - ${escapeHtml(item.item_type)}` : ""}</div>
-      <div class="item-title-line">${escapeHtml(item.item_title || "")}</div>
-    `;
-    line.addEventListener("click", () => showEmployeesForTraining(item));
-    return line;
-  }
+    function renderSelectionSummary() {
+      if (!selectedItems.length) {
+        selectionSummaryEl.className = "muted";
+        selectionSummaryEl.textContent = "No removals selected yet.";
+        return;
+      }
 
-  function renderSearchResults(query) {
-    app.innerHTML = "";
+      const grouped = groupSelectionsByPerson(selectedItems);
 
-    const q = query.toLowerCase().trim();
-    const matches = [];
+      selectionSummaryEl.className = "";
+      selectionSummaryEl.innerHTML = grouped.map(person => {
+        const itemsHtml = person.items.map(item => `
+          <div class="summary-item">
+            <div><strong>Item ID:</strong> ${escapeHtml(item.item_id)}</div>
+            <div><strong>Item Title:</strong> ${escapeHtml(item.item_title)}</div>
+            <div><strong>SUBCURRICULUM ID:</strong> ${escapeHtml(item.subcurriculum_id)}</div>
+            <div><strong>Subcurriculum Title:</strong> ${escapeHtml(item.subcurriculum_title)}</div>
+            <div><strong>Parent Curriculum ID:</strong> ${escapeHtml(item.parent_curriculum_id)}</div>
+            <div><strong>Parent Curriculum Title:</strong> ${escapeHtml(item.parent_curriculum_title)}</div>
+          </div>
+        `).join("");
 
-    for (const curr of treeData) {
-      for (const sub of (curr.subcurriculums || [])) {
-        for (const item of (sub.items || [])) {
-          if (itemText(item, curr, sub).includes(q)) {
-            matches.push({
-              curr,
-              sub,
-              item
+        return `
+          <div class="summary-person">
+            <div class="summary-person-title">${escapeHtml(person.employee_name)} (${escapeHtml(person.employee_id)})</div>
+            ${itemsHtml}
+          </div>
+        `;
+      }).join("");
+    }
+
+    function getReportsForItem(itemId) {
+      if (!fullData || !fullData.training_to_reports) return [];
+      return fullData.training_to_reports[itemId] || [];
+    }
+
+    function getTrainingForEmployee(employeeId) {
+      if (!fullData || !fullData.employee_training_lookup) return null;
+      return fullData.employee_training_lookup[employeeId] || null;
+    }
+
+    function getAllEmployees() {
+      if (!fullData || !fullData.employee_training_lookup) return [];
+
+      return Object.values(fullData.employee_training_lookup).sort((a, b) => {
+        const aText = `${a.employee_name || ""} ${a.employee_id || ""}`.toLowerCase();
+        const bText = `${b.employee_name || ""} ${b.employee_id || ""}`.toLowerCase();
+        return aText.localeCompare(bText);
+      });
+    }
+
+    function updateActiveEmployeeTabs() {
+      document.querySelectorAll(".employee-tab").forEach(el => {
+        if (el.dataset.employeeId === selectedEmployeeId) {
+          el.classList.add("active-tab");
+        } else {
+          el.classList.remove("active-tab");
+        }
+      });
+    }
+
+    function updateActiveEmployeeStyles() {
+      document.querySelectorAll(".employee-main").forEach(el => {
+        if (el.dataset.employeeId === selectedEmployeeId) {
+          el.classList.add("active-employee");
+        } else {
+          el.classList.remove("active-employee");
+        }
+      });
+    }
+
+    function formatEmployeeId(id) {
+      const clean = String(id ?? "").trim();
+      return clean.padStart(8, "0");
+    }
+
+    function flattenEmployeeTrainingRows(tree) {
+      const rows = [];
+
+      for (const curr of (tree || [])) {
+        for (const sub of (curr.subcurriculums || [])) {
+          for (const item of (sub.items || [])) {
+            rows.push({
+              item_title: item.item_title || "",
+              item_type: item.item_type || "",
+              item_id: item.item_id || ""
             });
           }
         }
       }
+
+      rows.sort((a, b) => {
+        const aText = `${a.item_title} ${a.item_id}`.toLowerCase();
+        const bText = `${b.item_title} ${b.item_id}`.toLowerCase();
+        return aText.localeCompare(bText);
+      });
+
+      return rows;
     }
 
-    if (!matches.length) {
-      app.className = "muted";
-      app.textContent = "No matching items.";
-      return;
-    }
+    function renderEmployeeTrainingTable(tree) {
+      const rows = flattenEmployeeTrainingRows(tree);
 
-    app.className = "";
+      if (!rows.length) {
+        return `<div class="muted">No training found for this employee.</div>`;
+      }
 
-    const label = document.createElement("div");
-    label.className = "search-results-label";
-    label.textContent = "Search Results";
-    app.appendChild(label);
-
-    matches.forEach(match => {
-      const wrapper = document.createElement("div");
-      wrapper.className = "itemline";
-      wrapper.style.marginBottom = "10px";
-
-      const context = document.createElement("div");
-      context.className = "muted";
-      context.style.marginBottom = "6px";
-      context.textContent = `${match.curr.parent_curriculum_title} | ${match.sub.subcurriculum_title}`;
-
-      wrapper.appendChild(context);
-      wrapper.appendChild(renderItemLine(match.item));
-      app.appendChild(wrapper);
-    });
-
-    updateActiveItemStyles();
-  }
-
-  function renderTree(query = "") {
-    app.innerHTML = "";
-    const q = query.trim().toLowerCase();
-
-    if (q) {
-      renderSearchResults(q);
-      return;
-    }
-
-    app.className = "";
-
-    if (!treeData.length) {
-      app.className = "muted";
-      app.textContent = "No curriculum data found.";
-      return;
-    }
-
-    for (const curr of treeData) {
-      const currDetails = document.createElement("details");
-      currDetails.className = "node";
-
-      const currSummary = document.createElement("summary");
-      currSummary.innerHTML = `
-        <div><strong>Curriculum:</strong></div>
-        <div><code>${escapeHtml(curr.parent_curriculum_id)}</code></div>
-        <div>${escapeHtml(curr.parent_curriculum_title)}</div>
-      `;
-      currDetails.appendChild(currSummary);
-
-      const currWrap = document.createElement("div");
-      currWrap.className = "indent";
-
-      for (const sub of (curr.subcurriculums || [])) {
-        const sameAsCurriculum =
-          (sub.subcurriculum_id || "") === (curr.parent_curriculum_id || "") &&
-          (sub.subcurriculum_title || "") === (curr.parent_curriculum_title || "");
-
-        if (!sameAsCurriculum) {
-          const subBlock = document.createElement("div");
-          subBlock.className = "subcurriculum-block";
-
-          const subTitle = document.createElement("div");
-          subTitle.className = "subcurriculum-title";
-          subTitle.innerHTML = `
-            <div>SUBCURRICULUM: </div>
-            <div><code>${escapeHtml(sub.subcurriculum_id)}</code></div>
-            <div>${escapeHtml(sub.subcurriculum_title)}</div>
-          `;
-          subBlock.appendChild(subTitle);
-
-          for (const item of (sub.items || [])) {
-            subBlock.appendChild(renderItemLine(item));
-          }
-
-          currWrap.appendChild(subBlock);
-        } else {
-          for (const item of (sub.items || [])) {
-            currWrap.appendChild(renderItemLine(item));
-          }
+      let longestTitleLength = 0;
+      for (const row of rows) {
+        const len = (row.item_title || "").length;
+        if (len > longestTitleLength) {
+          longestTitleLength = len;
         }
       }
 
-      currDetails.appendChild(currWrap);
-      app.appendChild(currDetails);
+      const titleWidthCh = longestTitleLength + 10;
+
+      return `
+        <table class="employee-training-table">
+          <colgroup>
+            <col style="width: auto;">
+            <col style="width: ${titleWidthCh}ch;">
+            <col style="width: auto;">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Item ID</th>
+              <th>Item Title</th>
+              <th>Item Type</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(row => `
+              <tr>
+                <td>${escapeHtml(row.item_id)}</td>
+                <td>${escapeHtml(row.item_title)}</td>
+                <td>${escapeHtml(row.item_type)}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      `;
     }
 
-    updateActiveItemStyles();
-  }
-
-  function buildEmailBody() {
-    const grouped = groupSelectionsByPerson(selectedItems);
-    const supervisorName = fullData?.supervisor?.name || "";
-    const supervisorEmail = fullData?.supervisor?.email || "";
-
-    let body = "";
-    body += `Supervisor: ${supervisorName}\n`;
-    body += `Supervisor Email: ${supervisorEmail}\n\n`;
-    body += `Please remove the following training assignments:\n\n`;
-
-    for (const person of grouped) {
-      body += `${person.employee_name} (${person.employee_id})\n\n`;
-
-      for (const item of person.items) {
-        body += `Item ID: ${item.item_id}\n`;
-        body += `Item Title: ${item.item_title}\n`;
-        body += `Subcurriculum ID: ${item.subcurriculum_id}\n`;
-        body += `Subcurriculum Title: ${item.subcurriculum_title}\n`;
-        body += `Parent Curriculum ID: ${item.parent_curriculum_id}\n`;
-        body += `Parent Curriculum Title: ${item.parent_curriculum_title}\n\n`;
+    function showEmployeeInBrowser(employeeId) {
+      if (selectedEmployeeId === employeeId) {
+        selectedEmployeeId = null;
+        updateActiveEmployeeTabs();
+        updateActiveEmployeeStyles();
+        employeeTrainingBrowserEl.className = "muted";
+        employeeTrainingBrowserEl.textContent = "Click a direct report to view all assigned training.";
+        return;
       }
 
-      body += "\n";
+      selectedEmployeeId = employeeId;
+      updateActiveEmployeeTabs();
+      updateActiveEmployeeStyles();
+
+      const employeeData = getTrainingForEmployee(employeeId);
+
+      if (!employeeData) {
+        employeeTrainingBrowserEl.className = "muted";
+        employeeTrainingBrowserEl.textContent = "No training found for this employee.";
+        return;
+      }
+
+      employeeTrainingBrowserEl.className = "";
+      employeeTrainingBrowserEl.innerHTML = `
+        <div class="summary-person-title">${escapeHtml(employeeData.employee_name)} (${escapeHtml(formatEmployeeId(employeeData.employee_id))})</div>
+        ${renderEmployeeTrainingTable(employeeData.tree || [])}
+      `;
     }
 
-    body += `Total employees affected: ${grouped.length}\n`;
-    body += `Total assignments to remove: ${selectedItems.length}\n`;
+    function renderEmployeeTabs() {
+      const employees = getAllEmployees();
 
-    return body;
-  }
+      if (!employees.length) {
+        employeeTabsEl.className = "muted";
+        employeeTabsEl.textContent = "No direct reports found.";
+        return;
+      }
 
-  createEmailBtn.addEventListener("click", () => {
-    if (!selectedItems.length) {
-      alert("No removals selected.");
-      return;
+      employeeTabsEl.className = "";
+      employeeTabsEl.innerHTML = "";
+
+      const wrap = document.createElement("div");
+      wrap.className = "employee-tabs-wrap";
+
+      employees.forEach(employee => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "employee-tab";
+        btn.dataset.employeeId = employee.employee_id;
+        btn.textContent = `${employee.employee_name} (${formatEmployeeId(employee.employee_id)})`;
+        btn.addEventListener("click", () => showEmployeeInBrowser(employee.employee_id));
+        wrap.appendChild(btn);
+      });
+
+      employeeTabsEl.appendChild(wrap);
+      updateActiveEmployeeTabs();
     }
 
-    const supervisorName = fullData?.supervisor?.name || "Supervisor";
-    const subject = `Training removal request - ${supervisorName}`;
-    const body = buildEmailBody();
+    function renderEmployeeTree(tree) {
+      if (!tree || !tree.length) {
+        return `<div class="muted">No training found for this employee.</div>`;
+      }
 
-    const mailto = `mailto:${EMAIL_TO}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.location.href = mailto;
-  });
+      return `
+        <div class="mini-tree">
+          ${tree.map(curr => `
+            <details class="node">
+              <summary>
+                <div><strong>Curriculum:</strong></div>
+                <div><code>${escapeHtml(curr.parent_curriculum_id)}</code></div>
+                <div>${escapeHtml(curr.parent_curriculum_title || "")}</div>
+              </summary>
+              <div class="indent">
+                ${(curr.subcurriculums || []).map(sub => {
+                  const sameAsCurriculum =
+                    (sub.subcurriculum_id || "") === (curr.parent_curriculum_id || "") &&
+                    (sub.subcurriculum_title || "") === (curr.parent_curriculum_title || "");
 
-  clearProgressBtn.addEventListener("click", () => {
-    const ok = confirm("Clear all saved selections for this page?");
-    if (!ok) return;
+                  if (sameAsCurriculum) {
+                    return (sub.items || []).map(item => `
+                      <div class="itemline">
+                        <div class="item-id-line"><code>${escapeHtml(item.item_id)}</code>${item.item_type ? ` - ${escapeHtml(item.item_type)}` : ""}</div>
+                        <div class="item-title-line">${escapeHtml(item.item_title || "")}</div>
+                      </div>
+                    `).join("");
+                  }
 
-    selectedItems = [];
-    localStorage.removeItem(STORAGE_KEY);
-    savedNoteEl.textContent = "Saved progress cleared.";
-    renderSelectionSummary();
+                  return `
+                    <div class="subcurriculum-block">
+                      <div class="subcurriculum-title">
+                        <div>SUBCURRICULUM: </div>
+                        <div><code>${escapeHtml(sub.subcurriculum_id)}</code></div>
+                        <div>${escapeHtml(sub.subcurriculum_title || "")}</div>
+                      </div>
+                      ${(sub.items || []).map(item => `
+                        <div class="itemline">
+                          <div class="item-id-line"><code>${escapeHtml(item.item_id)}</code>${item.item_type ? ` - ${escapeHtml(item.item_type)}` : ""}</div>
+                          <div class="item-title-line">${escapeHtml(item.item_title || "")}</div>
+                        </div>
+                      `).join("")}
+                    </div>
+                  `;
+                }).join("")}
+              </div>
+            </details>
+          `).join("")}
+        </div>
+      `;
+    }
 
-    if (selectedItemId) {
-      const reports = getReportsForItem(selectedItemId);
-      employeeListEl.innerHTML = "";
+    function showTrainingForEmployee(employeeId) {
+      selectedEmployeeId = employeeId;
+      updateActiveEmployeeStyles();
+      updateActiveEmployeeTabs();
+
+      if (!selectedEmployeeTrainingEl) return;
+
+      const employeeData = getTrainingForEmployee(employeeId);
+
+      if (!employeeData) {
+        selectedEmployeeTrainingEl.className = "muted";
+        selectedEmployeeTrainingEl.textContent = "No training found for this employee.";
+        return;
+      }
+
+      selectedEmployeeTrainingEl.className = "";
+      selectedEmployeeTrainingEl.innerHTML = `
+        <div class="summary-person-title">${escapeHtml(employeeData.employee_name)} (${escapeHtml(formatEmployeeId(employeeData.employee_id))})</div>
+        ${renderEmployeeTree(employeeData.tree || [])}
+      `;
+    }
+
+    function updateActiveItemStyles() {
+      document.querySelectorAll(".clickable-item").forEach(el => {
+        if (el.dataset.itemId === selectedItemId) {
+          el.classList.add("active-item");
+        } else {
+          el.classList.remove("active-item");
+        }
+      });
+    }
+
+    function showEmployeesForTraining(item) {
+      selectedItemId = item.item_id;
+      updateActiveItemStyles();
+
+      selectedTrainingEl.innerHTML = `
+        <div class="selected-item-id">${escapeHtml(item.item_id)}</div>
+        <div class="selected-item-title">${escapeHtml(item.item_title || "")}</div>
+      `;
+
+      selectedTrainingDetailsEl.textContent = item.item_type ? `Item Type: ${item.item_type}` : "";
+
+      const reports = getReportsForItem(item.item_id);
 
       if (!reports.length) {
         employeeListEl.className = "muted";
@@ -872,6 +823,8 @@
       }
 
       employeeListEl.className = "";
+      employeeListEl.innerHTML = "";
+
       reports
         .slice()
         .sort((a, b) => {
@@ -885,7 +838,7 @@
 
           const checkbox = document.createElement("input");
           checkbox.type = "checkbox";
-          checkbox.checked = false;
+          checkbox.checked = isSelected(person);
 
           checkbox.addEventListener("change", () => {
             if (checkbox.checked) {
@@ -899,52 +852,303 @@
           const textWrap = document.createElement("div");
           textWrap.className = "employee-main";
           textWrap.dataset.employeeId = person.employee_id;
-          textWrap.innerHTML = `<div><strong>${escapeHtml(person.employee_name)}</strong> (${escapeHtml(person.employee_id)})</div>`;
+          textWrap.innerHTML = `<div><strong>${escapeHtml(person.employee_name)}</strong> (${escapeHtml(formatEmployeeId(person.employee_id))})</div>`;
           textWrap.addEventListener("click", () => showTrainingForEmployee(person.employee_id));
 
           row.appendChild(checkbox);
           row.appendChild(textWrap);
           employeeListEl.appendChild(row);
         });
-    } else {
-      employeeListEl.className = "muted";
-      employeeListEl.textContent = "No training selected.";
-      selectedEmployeeId = null;
-      selectedEmployeeTrainingEl.className = "muted";
-      selectedEmployeeTrainingEl.textContent = "Click a direct report to view all assigned training.";
+
+      updateActiveEmployeeStyles();
     }
-  });
 
-  search.addEventListener("input", e => {
-    renderTree(e.target.value);
-  });
+    function itemText(item, curr, sub) {
+      return `
+        ${item.item_id || ""}
+        ${item.item_type || ""}
+        ${item.item_title || ""}
+        ${curr.parent_curriculum_id || ""}
+        ${curr.parent_curriculum_title || ""}
+        ${sub.subcurriculum_id || ""}
+        ${sub.subcurriculum_title || ""}
+      `.toLowerCase();
+    }
 
-  fetch(DATA_FILE)
-    .then(res => {
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status} loading ${DATA_FILE}`);
+    function renderItemLine(item) {
+      const line = document.createElement("div");
+      line.className = "itemline clickable-item";
+      line.dataset.itemId = item.item_id;
+      line.innerHTML = `
+        <div class="item-id-line"><code>${escapeHtml(item.item_id)}</code>${item.item_type ? ` - ${escapeHtml(item.item_type)}` : ""}</div>
+        <div class="item-title-line">${escapeHtml(item.item_title || "")}</div>
+      `;
+      line.addEventListener("click", () => showEmployeesForTraining(item));
+      return line;
+    }
+
+    function renderSearchResults(query) {
+      app.innerHTML = "";
+
+      const q = query.toLowerCase().trim();
+      const matches = [];
+
+      for (const curr of treeData) {
+        for (const sub of (curr.subcurriculums || [])) {
+          for (const item of (sub.items || [])) {
+            if (itemText(item, curr, sub).includes(q)) {
+              matches.push({ curr, sub, item });
+            }
+          }
+        }
       }
-      return res.json();
-    })
-    .then(data => {
-      fullData = data;
-      treeData = data.tree || [];
-      selectedItems = loadSavedSelections();
 
-      renderTree("");
+      if (!matches.length) {
+        app.className = "muted";
+        app.textContent = "No matching items.";
+        return;
+      }
+
+      app.className = "";
+
+      const label = document.createElement("div");
+      label.className = "search-results-label";
+      label.textContent = "Search Results";
+      app.appendChild(label);
+
+      matches.forEach(match => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "itemline";
+        wrapper.style.marginBottom = "10px";
+
+        const context = document.createElement("div");
+        context.className = "muted";
+        context.style.marginBottom = "6px";
+        context.textContent = `${match.curr.parent_curriculum_title} | ${match.sub.subcurriculum_title}`;
+
+        wrapper.appendChild(context);
+        wrapper.appendChild(renderItemLine(match.item));
+        app.appendChild(wrapper);
+      });
+
+      updateActiveItemStyles();
+    }
+
+    function renderTree(query = "") {
+      app.innerHTML = "";
+      const q = query.trim().toLowerCase();
+
+      if (q) {
+        renderSearchResults(q);
+        return;
+      }
+
+      app.className = "";
+
+      if (!treeData.length) {
+        app.className = "muted";
+        app.textContent = "No curriculum data found.";
+        return;
+      }
+
+      for (const curr of treeData) {
+        const currDetails = document.createElement("details");
+        currDetails.className = "node";
+
+        const currSummary = document.createElement("summary");
+        currSummary.innerHTML = `
+          <div><strong>Curriculum:</strong></div>
+          <div><code>${escapeHtml(curr.parent_curriculum_id)}</code></div>
+          <div>${escapeHtml(curr.parent_curriculum_title)}</div>
+        `;
+        currDetails.appendChild(currSummary);
+
+        const currWrap = document.createElement("div");
+        currWrap.className = "indent";
+
+        for (const sub of (curr.subcurriculums || [])) {
+          const sameAsCurriculum =
+            (sub.subcurriculum_id || "") === (curr.parent_curriculum_id || "") &&
+            (sub.subcurriculum_title || "") === (curr.parent_curriculum_title || "");
+
+          if (!sameAsCurriculum) {
+            const subBlock = document.createElement("div");
+            subBlock.className = "subcurriculum-block";
+
+            const subTitle = document.createElement("div");
+            subTitle.className = "subcurriculum-title";
+            subTitle.innerHTML = `
+              <div>SUBCURRICULUM: </div>
+              <div><code>${escapeHtml(sub.subcurriculum_id)}</code></div>
+              <div>${escapeHtml(sub.subcurriculum_title)}</div>
+            `;
+            subBlock.appendChild(subTitle);
+
+            for (const item of (sub.items || [])) {
+              subBlock.appendChild(renderItemLine(item));
+            }
+
+            currWrap.appendChild(subBlock);
+          } else {
+            for (const item of (sub.items || [])) {
+              currWrap.appendChild(renderItemLine(item));
+            }
+          }
+        }
+
+        currDetails.appendChild(currWrap);
+        app.appendChild(currDetails);
+      }
+
+      updateActiveItemStyles();
+    }
+
+    function buildEmailBody() {
+      const grouped = groupSelectionsByPerson(selectedItems);
+      const supervisorName = fullData?.supervisor?.name || "";
+      const supervisorEmail = fullData?.supervisor?.email || "";
+
+      let body = "";
+      body += `Supervisor: ${supervisorName}\n`;
+      body += `Supervisor Email: ${supervisorEmail}\n\n`;
+      body += `Please remove the following training assignments:\n\n`;
+
+      for (const person of grouped) {
+        body += `${person.employee_name} (${formatEmployeeId(person.employee_id)})\n\n`;
+
+        for (const item of person.items) {
+          body += `Item ID: ${item.item_id}\n`;
+          body += `Item Title: ${item.item_title}\n`;
+          body += `Subcurriculum ID: ${item.subcurriculum_id}\n`;
+          body += `Subcurriculum Title: ${item.subcurriculum_title}\n`;
+          body += `Parent Curriculum ID: ${item.parent_curriculum_id}\n`;
+          body += `Parent Curriculum Title: ${item.parent_curriculum_title}\n\n`;
+        }
+
+        body += "\n";
+      }
+
+      body += `Total employees affected: ${grouped.length}\n`;
+      body += `Total assignments to remove: ${selectedItems.length}\n`;
+
+      return body;
+    }
+
+    createEmailBtn.addEventListener("click", () => {
+      if (!selectedItems.length) {
+        alert("No removals selected.");
+        return;
+      }
+
+      const supervisorName = fullData?.supervisor?.name || "Supervisor";
+      const subject = `Training removal request - ${supervisorName}`;
+      const body = buildEmailBody();
+
+      const mailto = `mailto:${EMAIL_TO}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      window.location.href = mailto;
+    });
+
+    clearProgressBtn.addEventListener("click", () => {
+      const ok = confirm("Clear all saved selections for this page?");
+      if (!ok) return;
+
+      selectedItems = [];
+      localStorage.removeItem(STORAGE_KEY);
+      savedNoteEl.textContent = "Saved progress cleared.";
       renderSelectionSummary();
 
-      const supervisorName = data?.supervisor?.name || "";
-      if (supervisorName) {
-        document.title = `SFLMS Direct Reports Training Items List - ${supervisorName}`;
-        pageTitleEl.textContent = `${supervisorName} Direct Reports Training List`;
+      if (selectedItemId) {
+        const reports = getReportsForItem(selectedItemId);
+        employeeListEl.innerHTML = "";
+
+        if (!reports.length) {
+          employeeListEl.className = "muted";
+          employeeListEl.textContent = "No direct reports found for this training.";
+          return;
+        }
+
+        employeeListEl.className = "";
+        reports
+          .slice()
+          .sort((a, b) => {
+            const aText = `${a.employee_name} ${a.employee_id}`.toLowerCase();
+            const bText = `${b.employee_name} ${b.employee_id}`.toLowerCase();
+            return aText.localeCompare(bText);
+          })
+          .forEach(person => {
+            const row = document.createElement("div");
+            row.className = "employee-row";
+
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.checked = false;
+
+            checkbox.addEventListener("change", () => {
+              if (checkbox.checked) {
+                addSelection(person);
+              } else {
+                removeSelection(person);
+              }
+              renderSelectionSummary();
+            });
+
+            const textWrap = document.createElement("div");
+            textWrap.className = "employee-main";
+            textWrap.dataset.employeeId = person.employee_id;
+            textWrap.innerHTML = `<div><strong>${escapeHtml(person.employee_name)}</strong> (${escapeHtml(formatEmployeeId(person.employee_id))})</div>`;
+            textWrap.addEventListener("click", () => showTrainingForEmployee(person.employee_id));
+
+            row.appendChild(checkbox);
+            row.appendChild(textWrap);
+            employeeListEl.appendChild(row);
+          });
+      } else {
+        employeeListEl.className = "muted";
+        employeeListEl.textContent = "No training selected.";
+        selectedEmployeeId = null;
+
+        if (selectedEmployeeTrainingEl) {
+          selectedEmployeeTrainingEl.className = "muted";
+          selectedEmployeeTrainingEl.textContent = "Click a direct report to view all assigned training.";
+        }
+
+        employeeTrainingBrowserEl.className = "muted";
+        employeeTrainingBrowserEl.textContent = "Click a direct report to view all assigned training.";
+        updateActiveEmployeeTabs();
       }
-    })
-    .catch(err => {
-      console.error("Fetch failed:", err);
-      app.className = "muted";
-      app.textContent = `Could not load supervisor data: ${err.message}`;
     });
-</script>
+
+    search.addEventListener("input", e => {
+      renderTree(e.target.value);
+    });
+
+    fetch(DATA_FILE)
+      .then(res => {
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status} loading ${DATA_FILE}`);
+        }
+        return res.json();
+      })
+      .then(data => {
+        fullData = data;
+        treeData = data.tree || [];
+        selectedItems = loadSavedSelections();
+
+        renderTree("");
+        renderEmployeeTabs();
+        renderSelectionSummary();
+
+        const supervisorName = data?.supervisor?.name || "";
+        if (supervisorName) {
+          document.title = `SFLMS Direct Reports Training Items List - ${supervisorName}`;
+          pageTitleEl.textContent = `${supervisorName} Direct Reports Training List`;
+        }
+      })
+      .catch(err => {
+        console.error("Fetch failed:", err);
+        app.className = "muted";
+        app.textContent = `Could not load supervisor data: ${err.message}`;
+      });
+  </script>
 </body>
 </html>
